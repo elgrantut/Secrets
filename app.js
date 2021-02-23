@@ -4,7 +4,7 @@ const express = require('express')
 const bodyParser = require('body-parser')
 const ejs = require('ejs')
 const mongoose = require('mongoose')
-const encrypt = require('mongoose-encryption')
+const bcrypt = require('bcrypt')
 
 const app = express()
 
@@ -22,8 +22,7 @@ const userSchema = new mongoose.Schema({
 })
 
 //Add encryption
-const secret = process.env.SECRET
-userSchema.plugin(encrypt, { secret: secret, encryptedFields: ['password'] })
+
 const User = new mongoose.model('User', userSchema)
 
 app.use(express.static('public'))
@@ -38,21 +37,25 @@ app.get('/register', (req, res) => res.render('register'))
 
 //Posts
 // Register a user
+const saltRound = 10
 
 app.post('/register', (req, res) => {
   const userName = req.body.username
   const password = req.body.password
-  const newUser = new User({
-    email: userName,
-    password: password,
-  })
-  newUser.save((err) => {
-    if (err) {
-      console.log(err)
-    } else {
-      console.log('Successfully created new user')
-      res.render('secrets')
-    }
+
+  bcrypt.hash(password, saltRound, (err, hash) => {
+    const newUser = new User({
+      email: userName,
+      password: hash,
+    })
+    newUser.save((err) => {
+      if (err) {
+        console.log(err)
+      } else {
+        console.log('Successfully created new user')
+        res.render('secrets')
+      }
+    })
   })
 })
 
@@ -61,12 +64,17 @@ app.post('/register', (req, res) => {
 app.post('/login', (req, res) => {
   const userName = req.body.username
   const password = req.body.password
+
   User.findOne({ email: userName }, (err, user) => {
     if (err) {
       console.log(err)
     } else {
-      if (user.password === password) {
-        res.render('secrets')
+      if (user) {
+        bcrypt.compare(password, user.password, (err, result) => {
+          if (result === true) {
+            res.render('secrets')
+          }
+        })
       }
     }
   })
